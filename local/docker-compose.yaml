@@ -1,0 +1,112 @@
+# ============================================================
+# Whole shop on your laptop (Docker Desktop) - for local testing.
+#
+#   1. cp .env.example .env        (then edit the values)
+#   2. build the identity JAR:     cd ../../identity-service && ./mvnw -B package -DskipTests
+#   3. docker compose up --build -d
+#   4. seed sample data (once):    docker compose --profile seed run --rm seed
+#   5. open http://localhost:8080
+#
+# Uses a throw-away MongoDB container, NOT the real Atlas database.
+# Each service is built from its sibling repository folder
+# (repos/<service>), exactly like CI builds it.
+# ============================================================
+
+name: mern-local
+
+x-common-env: &common-env
+  BASE_API_URL: api
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (at least 32 characters) in .env}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  mongo:
+    image: mongo:8.0
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  identity:
+    build: ../../identity-service
+    environment:
+      <<: *common-env
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MONGO_URI: mongodb://mongo:27017/mern_ecommerce
+    depends_on:
+      mongo: { condition: service_healthy }
+
+  catalog:
+    build: ../../catalog-service
+    environment:
+      <<: *common-env
+      MONGO_URI: mongodb://mongo:27017/mern_ecommerce
+    depends_on:
+      mongo: { condition: service_healthy }
+
+  notification:
+    build: ../../notification-service
+    environment:
+      <<: *common-env
+      MONGO_URI: mongodb://mongo:27017/mern_ecommerce
+    depends_on:
+      mongo: { condition: service_healthy }
+
+  commerce:
+    build: ../../commerce-service
+    environment:
+      <<: *common-env
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MONGO_URI: mongodb://mongo:27017/mern_ecommerce
+      NOTIFICATION_URL: http://notification:3104
+    depends_on:
+      mongo: { condition: service_healthy }
+      notification: { condition: service_healthy }
+
+  gateway:
+    build: ../../api-gateway-service
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      BASE_API_URL: api
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      IDENTITY_URL: http://identity:3101
+      CATALOG_URL: http://catalog:3102
+      COMMERCE_URL: http://commerce:3103
+      NOTIFICATION_URL: http://notification:3104
+      # The browser loads the site from :8080 and calls the API on :3000.
+      CORS_ORIGINS: http://localhost:8080
+    depends_on:
+      identity: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+      commerce: { condition: service_healthy }
+      notification: { condition: service_healthy }
+
+  client:
+    build:
+      context: ../../client-service
+      args:
+        # Locally the API is on another port; in the clouds it is the
+        # relative "/api" (same domain, routed by the Kubernetes Gateway).
+        API_URL: http://localhost:3000/api
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      gateway: { condition: service_healthy }
+
+  # One-off job, only runs with: docker compose --profile seed run --rm seed
+  seed:
+    build: ../../seed-db-service
+    profiles: ["seed"]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/mern_ecommerce
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?set SEED_ADMIN_EMAIL in .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in .env}
+    depends_on:
+      mongo: { condition: service_healthy }
+
+volumes:
+  mongo-data:
