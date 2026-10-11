@@ -1,0 +1,9 @@
+# rendered/packaged output
+charts/*/charts/
+*.tgz
+rendered/
+# secrets - values come from the cloud vaults via External Secrets
+.env
+*.pem
+*.key
+kubeconfig*
