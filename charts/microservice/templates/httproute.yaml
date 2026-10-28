@@ -1,0 +1,26 @@
+{{- if .Values.route.enabled }}
+# Publishes this service on the cluster's front door (Phase 6) for the
+# shop's host names. Longest matching prefix wins: /api beats /.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "ms.name" . }}
+  labels:
+    {{- include "ms.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: public
+      namespace: envoy-gateway-system
+  hostnames:
+    {{- toYaml .Values.global.hostnames | nindent 4 }}
+  rules:
+    - matches:
+        {{- range .Values.route.pathPrefixes }}
+        - path:
+            type: PathPrefix
+            value: {{ . }}
+        {{- end }}
+      backendRefs:
+        - name: {{ include "ms.name" . }}
+          port: {{ .Values.containerPort }}
+{{- end }}

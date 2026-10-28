@@ -1,0 +1,6 @@
+global:
+  cloud: gcp
+  imageRegistry: asia-south1-docker.pkg.dev/project-899ced78-a554-40c2-96c/mern
+  hostnames:
+    - rishavmukhopadhyay.store
+    - gcp.rishavmukhopadhyay.store

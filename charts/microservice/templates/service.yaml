@@ -1,0 +1,14 @@
+# Stable in-cluster address: http://<service-name>:<port>
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ms.name" . }}
+  labels:
+    {{- include "ms.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "ms.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.containerPort }}
+      targetPort: http

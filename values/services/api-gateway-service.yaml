@@ -1,0 +1,14 @@
+containerPort: 3000
+securityContext:
+  runAsUser: 1000          # the "node" user in node:22-alpine
+env:
+  BASE_API_URL: api
+  LOG_LEVEL: info
+  IDENTITY_URL: http://identity-service:3101
+  CATALOG_URL: http://catalog-service:3102
+  COMMERCE_URL: http://commerce-service:3103
+  NOTIFICATION_URL: http://notification-service:3104
+  CORS_ORIGINS: https://rishavmukhopadhyay.store,https://gcp.rishavmukhopadhyay.store,https://azure.rishavmukhopadhyay.store,https://aws.rishavmukhopadhyay.store
+route:
+  enabled: true
+  pathPrefixes: [/api, /socket.io]

@@ -1,0 +1,18 @@
+containerPort: 3104
+securityContext:
+  runAsUser: 1000
+env:
+  BASE_API_URL: api
+  LOG_LEVEL: info
+secretEnv:
+  MONGO_URI: mern-mongo-uri
+  JWT_SECRET: mern-jwt-secret
+# Support-chat state lives in this process's memory -> exactly ONE copy
+# (scaling out would need a Redis adapter).
+autoscaling:
+  enabled: false
+replicaCount: 1
+pdb:
+  enabled: false
+networkPolicy:
+  allowFrom: [api-gateway-service, commerce-service]

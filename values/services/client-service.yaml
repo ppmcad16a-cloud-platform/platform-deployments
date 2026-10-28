@@ -1,0 +1,18 @@
+containerPort: 8080
+securityContext:
+  runAsUser: 101           # nginx-unprivileged
+probes:
+  liveness: /healthz
+  readiness: /healthz
+  startupFailureThreshold: 12
+resources:
+  requests:
+    cpu: 20m
+    memory: 32Mi
+  limits:
+    memory: 64Mi
+metrics:
+  enabled: false           # nginx serves static files; no /metrics
+route:
+  enabled: true
+  pathPrefixes: [/]

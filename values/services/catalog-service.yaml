@@ -1,0 +1,11 @@
+containerPort: 3102
+securityContext:
+  runAsUser: 1000
+env:
+  BASE_API_URL: api
+  LOG_LEVEL: info
+secretEnv:
+  MONGO_URI: mern-mongo-uri
+  JWT_SECRET: mern-jwt-secret
+networkPolicy:
+  allowFrom: [api-gateway-service]

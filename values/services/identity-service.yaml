@@ -1,0 +1,25 @@
+containerPort: 3101
+securityContext:
+  runAsUser: 10001
+env:
+  LOG_LEVEL: INFO
+secretEnv:
+  MONGO_URI: mern-mongo-uri
+  JWT_SECRET: mern-jwt-secret
+resources:
+  requests:
+    cpu: 100m
+    memory: 384Mi
+  limits:
+    memory: 768Mi            # the JVM uses 75% of this for its heap
+probes:
+  liveness: /health
+  readiness: /ready
+  startupFailureThreshold: 40
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 3
+metrics:
+  path: /actuator/prometheus
+networkPolicy:
+  allowFrom: [api-gateway-service]

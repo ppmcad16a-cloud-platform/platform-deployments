@@ -1,0 +1,6 @@
+global:
+  cloud: aws
+  imageRegistry: 722867460821.dkr.ecr.ap-south-1.amazonaws.com
+  hostnames:
+    - rishavmukhopadhyay.store
+    - aws.rishavmukhopadhyay.store
