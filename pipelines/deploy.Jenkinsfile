@@ -19,6 +19,11 @@ pipeline {
               image: curlimages/curl:8.22.0
               command: ["sleep"]
               args: ["infinity"]
+              # Same user id as the "jnlp" agent container, so it can use
+              # the shared workspace that jnlp created.
+              securityContext:
+                runAsUser: 1000
+
       '''
     }
   }
