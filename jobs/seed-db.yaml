@@ -1,0 +1,63 @@
+# One-off job: create the shop admin + sample catalogue in MongoDB Atlas.
+# The database is SHARED by all clouds, so run it once (from any one cloud).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: seed-db-secrets
+  namespace: mern
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cloud-vault
+  target:
+    name: seed-db-secrets
+  data:
+    - secretKey: MONGO_URI
+      remoteRef:
+        key: mern-mongo-uri
+    - secretKey: SEED_ADMIN_PASSWORD
+      remoteRef:
+        key: mern-seed-admin-password
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-db
+  namespace: mern
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: seed-db-service
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seed
+          image: IMAGE_PLACEHOLDER
+          env:
+            - name: SEED_ADMIN_EMAIL
+              value: admin@rishavmukhopadhyay.store
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: seed-db-secrets
+                  key: MONGO_URI
+            - name: SEED_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seed-db-secrets
+                  key: SEED_ADMIN_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

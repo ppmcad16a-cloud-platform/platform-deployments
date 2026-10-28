@@ -1,0 +1,17 @@
+{{- if .Values.metrics.enabled }}
+# Tells Prometheus (Phase 6) to scrape this service every 30s.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ms.name" . }}
+  labels:
+    {{- include "ms.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ms.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ .Values.metrics.path }}
+      interval: 30s
+{{- end }}

@@ -1,0 +1,6 @@
+global:
+  cloud: azure
+  imageRegistry: acrmern0botwx.azurecr.io
+  hostnames:
+    - rishavmukhopadhyay.store
+    - azure.rishavmukhopadhyay.store

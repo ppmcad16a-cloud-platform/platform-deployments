@@ -1,0 +1,14 @@
+{{- if .Values.pdb.enabled }}
+# Node upgrades/repairs may never take ALL copies down at once.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ms.name" . }}
+  labels:
+    {{- include "ms.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "ms.selectorLabels" . | nindent 6 }}
+{{- end }}

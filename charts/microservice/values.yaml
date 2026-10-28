@@ -1,0 +1,56 @@
+global:
+  cloud: ""            # set by values/clouds/<cloud>.yaml
+  imageRegistry: ""    # e.g. asia-south1-docker.pkg.dev/<project>/mern
+  hostnames: []        # public host names the routes answer on
+
+image:
+  tag: ""              # REQUIRED - passed with --set image.tag=...
+  pullPolicy: IfNotPresent
+
+replicaCount: 2        # used only when autoscaling is off
+containerPort: 8080
+
+env: {}                # plain environment variables  NAME: value
+secretEnv: {}          # from the vault                 NAME: vault-secret-name
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+probes:
+  liveness: /health
+  readiness: /ready
+  startupFailureThreshold: 30   # x 5s = may take up to 150s to start
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+
+route:
+  enabled: false
+  pathPrefixes: []
+
+metrics:
+  enabled: true
+  path: /metrics
+
+networkPolicy:
+  enabled: true
+  allowFrom: []        # app names (same namespace) allowed to call this service
+
+securityContext:
+  runAsUser: null      # numeric user id of the image (needed for runAsNonRoot)
+  readOnlyRootFilesystem: true
+
+writablePaths:         # small scratch folders (emptyDir) on a read-only filesystem
+  - /tmp
+
+terminationGracePeriodSeconds: 30

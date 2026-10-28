@@ -1,0 +1,21 @@
+containerPort: 3103
+securityContext:
+  runAsUser: 10001
+env:
+  BASE_API_URL: api
+  LOG_LEVEL: INFO
+  NOTIFICATION_URL: http://notification-service:3104
+secretEnv:
+  MONGO_URI: mern-mongo-uri
+  JWT_SECRET: mern-jwt-secret
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    memory: 384Mi
+writablePaths:
+  - /tmp
+  - /home/app              # gunicorn keeps its control socket here
+networkPolicy:
+  allowFrom: [api-gateway-service]
