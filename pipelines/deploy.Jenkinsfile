@@ -8,6 +8,8 @@
 def helmDeploy(String cloud, String kubeArgs) {
   container('helm') {
     sh """
+      set +x   # never echo the expanded command: for Azure/AWS it contains a cluster token
+      echo "helm upgrade --install \$SERVICE (image \$IMAGE_TAG) -> ${cloud}"
       helm upgrade --install "\$SERVICE" charts/microservice \\
         --namespace mern ${kubeArgs} \\
         -f values/clouds/${cloud}.yaml \\
@@ -144,6 +146,7 @@ pipeline {
         container('azure') {
           sh '''
             set -e
+            set +x   # the federated token below must never appear in the build log
             mkdir -p .kube
             az login --service-principal --username "$AZURE_CLIENT_ID" --tenant "$AZURE_TENANT_ID" \
               --federated-token "$(cat /var/run/secrets/tokens/azure/token)" \
@@ -151,11 +154,13 @@ pipeline {
             az aks get-credentials --subscription "$AZURE_SUBSCRIPTION_ID" \
               --resource-group rg-prod-cluster --name prod-aks \
               --file .kube/azure.config --overwrite-existing
-            grep 'server:' .kube/azure.config | head -1 | awk '{print $2}' > .kube/azure-server
-            grep 'certificate-authority-data:' .kube/azure.config | head -1 | awk '{print $2}' | base64 -d > .kube/azure-ca.crt
+            # API address + CA from the kubeconfig (this image has grep/cut/tr, but no awk)
+            grep -m1 'server:' .kube/azure.config | grep -o 'https://[^[:space:]]*' > .kube/azure-server
+            grep -m1 'certificate-authority-data:' .kube/azure.config | cut -d: -f2 | tr -d ' ' | base64 -d > .kube/azure-ca.crt
             # Short-lived Entra token for the AKS API ("6dae42f8-..." = AKS sign-in app)
             az account get-access-token --resource 6dae42f8-4368-4678-94ff-3960e28e3630 \
               --query accessToken -o tsv > .kube/azure-token
+            echo "Azure: logged in, AKS API $(cat .kube/azure-server)"
           '''
         }
       }
