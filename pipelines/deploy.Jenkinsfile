@@ -3,9 +3,35 @@
 // + smoke test. A failure stops the pipeline, so later clouds keep the old,
 // working version.
 
+// The step that is running - named in the Slack message if the build fails.
+// (No "def": a script-wide variable that the functions below can update.)
+currentStep = 'Validate'
+
+def mark(String step) {
+  currentStep = step
+}
+
+// Post one line to Slack (#mern-alerts). The webhook comes from the vault
+// (ExternalSecret jenkins-slack -> env of the curl container). It never
+// fails the build: a Slack outage must not turn a good deploy red.
+def slack(String text) {
+  container('curl') {
+    withEnv(["SLACK_TEXT=${text}"]) {
+      sh '''
+        set +x
+        if [ -z "$SLACK_WEBHOOK_URL" ]; then echo "No Slack webhook configured - skipping"; exit 0; fi
+        curl -fsS -m 10 -H 'Content-Type: application/json' \
+          --data "$(printf '{"text":"%s"}' "$SLACK_TEXT")" "$SLACK_WEBHOOK_URL" > /dev/null \
+          && echo "Slack notified" || echo "Slack notification failed (ignored)"
+      '''
+    }
+  }
+}
+
 // helm upgrade for one cloud. kubeArgs (fixed text, never user input) tells
 // Helm how to reach that cloud's cluster ('' = the cluster Jenkins runs in).
 def helmDeploy(String cloud, String kubeArgs) {
+  mark("${cloud}: deploy")
   container('helm') {
     sh """
       set +x   # never echo the expanded command: for Azure/AWS it contains a cluster token
@@ -22,6 +48,7 @@ def helmDeploy(String cloud, String kubeArgs) {
 }
 
 def smokeTest(String cloud) {
+  mark("${cloud}: smoke test")
   container('curl') {
     sh "curl -fsS --retry 6 --retry-delay 10 --retry-all-errors https://${cloud}.\${DOMAIN}/api/health"
   }
@@ -46,6 +73,16 @@ pipeline {
               args: ["infinity"]
               securityContext:
                 runAsUser: 1000
+              env:
+                # Slack webhook (vault -> ExternalSecret jenkins-slack). optional:
+                # without it builds still run, they just post nothing.
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: jenkins-slack
+                      key: url
+                      optional: true
+
             - name: aws
               image: amazon/aws-cli:2.38.1
               command: ["sleep"]
@@ -143,6 +180,7 @@ pipeline {
     stage('Azure: credentials') {
       when { expression { params.TARGETS.split(',').contains('azure') } }
       steps {
+        mark('azure: credentials')
         container('azure') {
           sh '''
             set -e
@@ -180,6 +218,7 @@ pipeline {
     stage('AWS: credentials') {
       when { expression { params.TARGETS.split(',').contains('aws') } }
       steps {
+        mark('aws: credentials')
         container('aws') {
           sh '''
             set -e
@@ -209,5 +248,15 @@ pipeline {
       // The short-lived tokens die with the pod anyway; delete them early.
       container('helm') { sh 'rm -rf .kube' }
     }
+    success {
+      slack(":white_check_mark: deploy-mern #${env.BUILD_NUMBER}: *${params.SERVICE}* ${params.IMAGE_TAG} is live in ${params.TARGETS}")
+    }
+    failure {
+      slack(":x: deploy-mern #${env.BUILD_NUMBER} FAILED at *${currentStep}*: ${params.SERVICE} ${params.IMAGE_TAG}. That cloud rolled back to the previous version; later clouds were not touched. ${env.BUILD_URL}console")
+    }
+    aborted {
+      slack(":warning: deploy-mern #${env.BUILD_NUMBER} was ABORTED during *${currentStep}*: ${params.SERVICE} ${params.IMAGE_TAG}. ${env.BUILD_URL}console")
+    }
   }
+
 }
