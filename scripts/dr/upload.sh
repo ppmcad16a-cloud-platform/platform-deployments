@@ -1,5 +1,5 @@
 #!/bin/sh
-# Uploads one backup (encrypted archive + manifest) to ALL THREE clouds.
+# Uploads one backup (encrypted archive + manifest) to GCS and S3 (Azure: upload-azure.sh).
 # Any failure fails the job: a backup only counts once it exists three times.
 # Runs in the rclone container; credentials are keyless and come from the
 # pod's environment (see backup.Jenkinsfile).
@@ -17,7 +17,7 @@ rm -rf upload
 mkdir -p "upload/mern_ecommerce/$day"
 cp "$name.archive.gz.age" "$name.manifest.json" "upload/mern_ecommerce/$day/"
 
-for target in "gcs:$GCS_BUCKET" "s3:$S3_BUCKET" "az:$AZ_CONTAINER"; do
+for target in "gcs:$GCS_BUCKET" "s3:$S3_BUCKET"; do
   # one file at a time, sorted by name: the archive (…archive.gz.age) lands
   # BEFORE its manifest (…manifest.json), so a manifest always means a
   # complete backup (the restore drill relies on that).
