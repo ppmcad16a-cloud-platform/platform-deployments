@@ -7,6 +7,18 @@
 // (No "def": a script-wide variable that the functions below can update.)
 currentStep = 'Validate'
 
+// Stopped-standby failover: Azure and AWS may be ASLEEP (AKS stopped / EKS 0
+// nodes). A sleeping standby is skipped, not failed - wake.yml brings it up to
+// the current versions when it is woken.
+awake = [gcp: true, azure: true, aws: true]
+
+def asleepNote() {
+  def s = []
+  if (params.TARGETS.split(',').contains('azure') && !awake.azure) { s << 'azure' }
+  if (params.TARGETS.split(',').contains('aws') && !awake.aws) { s << 'aws' }
+  return s ? " (asleep, skipped: ${s.join(', ')})" : ''
+}
+
 def mark(String step) {
   currentStep = step
 }
@@ -176,9 +188,30 @@ pipeline {
       steps { smokeTest('gcp') }
     }
 
+    stage('Azure: awake?') {
+      when { expression { params.TARGETS.split(',').contains('azure') } }
+      steps {
+        mark('azure: awake?')
+        container('azure') {
+          script {
+            def state = sh(returnStdout: true, script: '''
+              set +x
+              az login --service-principal --username "$AZURE_CLIENT_ID" --tenant "$AZURE_TENANT_ID" \
+                --federated-token "$(cat /var/run/secrets/tokens/azure/token)" \
+                --allow-no-subscriptions --output none
+              az aks show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group rg-prod-cluster \
+                --name prod-aks --query powerState.code -o tsv
+            ''').trim()
+            awake.azure = (state == 'Running')
+            echo(awake.azure ? 'azure: awake' : "azure: ${state} - sleeping standby, skipped")
+          }
+        }
+      }
+    }
+
     // ---------------- Azure (GKE token -> Entra managed identity)
     stage('Azure: credentials') {
-      when { expression { params.TARGETS.split(',').contains('azure') } }
+      when { expression { params.TARGETS.split(',').contains('azure') && awake.azure } }
       steps {
         mark('azure: credentials')
         container('azure') {
@@ -204,19 +237,36 @@ pipeline {
       }
     }
     stage('Azure: deploy') {
-      when { expression { params.TARGETS.split(',').contains('azure') } }
+      when { expression { params.TARGETS.split(',').contains('azure') && awake.azure } }
       steps {
         helmDeploy('azure', '--kube-apiserver "$(cat .kube/azure-server)" --kube-ca-file .kube/azure-ca.crt --kube-token "$(cat .kube/azure-token)"')
       }
     }
     stage('Azure: smoke test') {
-      when { expression { params.TARGETS.split(',').contains('azure') } }
+      when { expression { params.TARGETS.split(',').contains('azure') && awake.azure } }
       steps { smokeTest('azure') }
+    }
+
+    stage('AWS: awake?') {
+      when { expression { params.TARGETS.split(',').contains('aws') } }
+      steps {
+        mark('aws: awake?')
+        container('aws') {
+          script {
+            def nodes = sh(returnStdout: true, script: '''
+              aws eks describe-nodegroup --cluster-name prod-eks --nodegroup-name default \
+                --query nodegroup.scalingConfig.desiredSize --output text
+            ''').trim()
+            awake.aws = (nodes != '0')
+            echo(awake.aws ? "aws: awake (${nodes} nodes)" : 'aws: 0 nodes - sleeping standby, skipped')
+          }
+        }
+      }
     }
 
     // ---------------- AWS (GKE token -> IAM role -> EKS access entry)
     stage('AWS: credentials') {
-      when { expression { params.TARGETS.split(',').contains('aws') } }
+      when { expression { params.TARGETS.split(',').contains('aws') && awake.aws } }
       steps {
         mark('aws: credentials')
         container('aws') {
@@ -232,13 +282,13 @@ pipeline {
       }
     }
     stage('AWS: deploy') {
-      when { expression { params.TARGETS.split(',').contains('aws') } }
+      when { expression { params.TARGETS.split(',').contains('aws') && awake.aws } }
       steps {
         helmDeploy('aws', '--kube-apiserver "$(cat .kube/aws-server)" --kube-ca-file .kube/aws-ca.crt --kube-token "$(cat .kube/aws-token)"')
       }
     }
     stage('AWS: smoke test') {
-      when { expression { params.TARGETS.split(',').contains('aws') } }
+      when { expression { params.TARGETS.split(',').contains('aws') && awake.aws } }
       steps { smokeTest('aws') }
     }
   }
@@ -249,7 +299,7 @@ pipeline {
       container('helm') { sh 'rm -rf .kube' }
     }
     success {
-      slack(":white_check_mark: deploy-mern #${env.BUILD_NUMBER}: *${params.SERVICE}* ${params.IMAGE_TAG} is live in ${params.TARGETS}")
+      slack(":white_check_mark: deploy-mern #${env.BUILD_NUMBER}: *${params.SERVICE}* ${params.IMAGE_TAG} is live in ${params.TARGETS}${asleepNote()}")
     }
     failure {
       slack(":x: deploy-mern #${env.BUILD_NUMBER} FAILED at *${currentStep}*: ${params.SERVICE} ${params.IMAGE_TAG}. That cloud rolled back to the previous version; later clouds were not touched. ${env.BUILD_URL}console")
