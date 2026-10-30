@@ -66,6 +66,8 @@ pipeline {
                   value: "true"
                 - name: RCLONE_CONFIG_GCS_BUCKET_POLICY_ONLY
                   value: "true"
+                - name: RCLONE_CONFIG_GCS_NO_CHECK_BUCKET   # we may not list the bucket
+                  value: "true"
                 - name: RCLONE_CONFIG_S3_TYPE
                   value: s3
                 - name: RCLONE_CONFIG_S3_PROVIDER
