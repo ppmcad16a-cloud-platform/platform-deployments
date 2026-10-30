@@ -46,6 +46,21 @@ pipeline {
                       name: jenkins-slack
                       key: url
                       optional: true
+                # Azure upload (upload-azure.sh): keyless, write-only identity
+                - name: AZ_ACCOUNT
+                  value: stbackup0botwx
+                - name: AZ_CONTAINER
+                  value: mongo-backups
+                - name: AZURE_CLIENT_ID
+                  value: def7bed6-66cc-49a8-ac6e-f9c6d1c7fcd2
+                - name: AZURE_TENANT_ID
+                  value: 0fd463ca-1b22-4674-bea5-699c2e0ad98b
+                - name: AZURE_FEDERATED_TOKEN_FILE
+                  value: /var/run/secrets/tokens/azure/token
+              volumeMounts:
+                - name: azure-token
+                  mountPath: /var/run/secrets/tokens/azure
+                  readOnly: true
             - name: rclone
               image: rclone/rclone:1.75.2
               command: ["sleep"]
@@ -79,14 +94,6 @@ pipeline {
                 - name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET    # we may not list buckets
                   value: "true"
                 - name: RCLONE_CONFIG_S3_NO_HEAD            # we may not read objects back
-                  value: "true"
-                - name: RCLONE_CONFIG_AZ_TYPE
-                  value: azureblob
-                - name: RCLONE_CONFIG_AZ_ACCOUNT
-                  value: stbackup0botwx
-                - name: RCLONE_CONFIG_AZ_ENV_AUTH           # AZURE_* + token file
-                  value: "true"
-                - name: RCLONE_CONFIG_AZ_NO_CHECK_CONTAINER
                   value: "true"
                 # Keyless logins: the GKE token in the files below is swapped
                 # for short-lived AWS / Azure credentials of the backup identity.
@@ -158,7 +165,10 @@ pipeline {
       }
     }
     stage('Upload to 3 clouds') {
-      steps { container('rclone') { sh 'sh scripts/dr/upload.sh "$BACKUP_NAME"' } }
+      steps {
+        container('rclone') { sh 'sh scripts/dr/upload.sh "$BACKUP_NAME"' }        // GCS + S3
+        container('curl')   { sh 'sh scripts/dr/upload-azure.sh "$BACKUP_NAME"' }  // Azure Blob
+      }
     }
   }
 
