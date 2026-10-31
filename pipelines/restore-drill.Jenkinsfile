@@ -1,4 +1,4 @@
-// Restore drill (Phase 10): proves a backup can really be restored.
+// Restore drill: proves a backup can really be restored.
 // Downloads the NEWEST backup from ONE cloud (parameter SOURCE), checks its
 // fingerprint, decrypts it, restores it into the scratch database
 // mern_restore_drill, compares document counts with the manifest, and

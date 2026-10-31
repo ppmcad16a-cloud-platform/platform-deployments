@@ -1,4 +1,4 @@
-// Encrypted MongoDB backup -> GCS + S3 + Azure Blob (Phase 10).
+// Encrypted MongoDB backup -> GCS + S3 + Azure Blob.
 // Nightly while the platform runs (cron in JCasC), or on demand.
 //
 // Least privilege: this job runs as jenkins/mongo-backup, which may ADD
