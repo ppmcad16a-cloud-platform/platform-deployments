@@ -1,5 +1,5 @@
 {{- if .Values.metrics.enabled }}
-# Tells Prometheus (Phase 6) to scrape this service every 30s.
+# Tells Prometheus to scrape this service every 30s.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

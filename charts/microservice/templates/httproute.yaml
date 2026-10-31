@@ -1,5 +1,5 @@
 {{- if .Values.route.enabled }}
-# Publishes this service on the cluster's front door (Phase 6) for the
+# Publishes this service on the cluster's front door (Envoy Gateway) for the
 # shop's host names. Longest matching prefix wins: /api beats /.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
